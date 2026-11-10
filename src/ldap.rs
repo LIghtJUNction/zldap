@@ -330,8 +330,10 @@ fn peek(mut cursor: Cursor<'_>) -> Result<Option<Tlv<'_>>> {
 fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
     let mut cursor = contents(tlv, limits);
     let mut known = [Tag::INTEGER; 16];
+    let known_len;
     let operation = match tlv.tag.number {
         0 => {
+            known_len = 4;
             expect(tlv, application(0, true))?;
             let v = required(&mut cursor)?;
             let version = positive(v, false)?;
@@ -384,6 +386,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             })
         }
         1 => {
+            known_len = 4;
             expect(tlv, application(1, true))?;
             let result = parse_result(&mut cursor, limits)?;
             let server_sasl_credentials = match peek(cursor)? {
@@ -402,6 +405,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             })
         }
         2 => {
+            known_len = 0;
             expect(tlv, application(2, false))?;
             if !tlv.value.is_empty() {
                 return Err(Error::new(ErrorKind::InvalidValue, value_offset(tlv)));
@@ -409,6 +413,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             Operation::UnbindRequest
         }
         3 => {
+            known_len = 16;
             expect(tlv, application(3, true))?;
             let base_dn = string(&mut cursor)?;
             let s = required(&mut cursor)?;
@@ -463,6 +468,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             })
         }
         4 => {
+            known_len = 2;
             expect(tlv, application(4, true))?;
             let object_name = string(&mut cursor)?;
             let attrs = expect(required(&mut cursor)?, Tag::SEQUENCE)?;
@@ -482,6 +488,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             })
         }
         5 => {
+            known_len = 3;
             expect(tlv, application(5, true))?;
             let result = parse_result(&mut cursor, limits)?;
             known[..3].copy_from_slice(&[Tag::ENUMERATED, Tag::OCTET_STRING, context(3, true)]);
@@ -494,7 +501,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             ))
         }
     };
-    extensions(&mut cursor, &known)?;
+    extensions(&mut cursor, &known[..known_len])?;
     Ok(operation)
 }
 
@@ -518,6 +525,9 @@ fn parse_result<'a>(cursor: &mut Cursor<'a>, limits: ParseLimits) -> Result<Ldap
                 }
             }
         }
+    }
+    if (code == 10) == referrals.cursor.remaining().is_empty() {
+        return Err(Error::new(ErrorKind::InvalidValue, cursor.offset()));
     }
     Ok(LdapResult {
         code,
@@ -643,7 +653,13 @@ impl<'a> Iterator for Controls<'a> {
                 return Err(Error::new(ErrorKind::InvalidOid, value_offset(tlv)));
             }
             let critical = match peek(fields)? {
-                Some(t) if t.tag == Tag::BOOLEAN => ldap_boolean(required(&mut fields)?)?,
+                Some(t) if t.tag == Tag::BOOLEAN => {
+                    let critical = ldap_boolean(required(&mut fields)?)?;
+                    if !critical {
+                        return Err(Error::new(ErrorKind::InvalidValue, t.offset));
+                    }
+                    critical
+                }
                 _ => false,
             };
             let value = match peek(fields)? {

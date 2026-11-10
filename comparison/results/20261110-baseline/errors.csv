@@ -1,0 +1,17 @@
+case,zldap_error,kanidm_error
+empty,Truncated,Incomplete
+truncated_tag,Truncated,Incomplete
+truncated_value,Truncated,Incomplete
+indefinite_length,IndefiniteLength,Protocol
+length_overflow,LengthOverflow,Protocol
+negative_message_id,IntegerOverflow,accepted
+zero_message_id,InvalidMessageId,accepted
+empty_message_id,InvalidInteger,accepted
+nonminimal_integer,InvalidInteger,accepted
+unsupported_operation,UnsupportedOperation(10),accepted
+unknown_outer_tag,UnexpectedTag,Protocol
+empty_and,InvalidFilter,accepted
+empty_not,MissingField,Protocol
+trailing_data,TrailingData,TrailingData
+invalid_utf8_dn,InvalidUtf8,Protocol
+oversized_value,MessageTooLong,ResourceLimit

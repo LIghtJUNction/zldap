@@ -75,7 +75,8 @@ payload bytes. `Message::copy_encoded` explicitly copies an existing frame.
 The BER layer accepts nonminimal definite length encodings, as BER permits them;
 it rejects indefinite lengths. Integers must use minimal signed encodings and fit
 in `i64`. LDAP INTEGER fields additionally obey their ASN.1 ranges. LDAP BOOLEAN
-true must use `ff`; generic BER BOOLEAN accepts any nonzero octet. Constructed
+true must use `ff`, and default FALSE criticality/dnAttributes fields must be
+absent; generic BER BOOLEAN accepts any nonzero octet. Constructed
 OCTET STRING is outside the LDAP BER profile. Embedded ASN.1 in an OCTET STRING
 is opaque and is not recursively decoded.
 
@@ -89,7 +90,7 @@ cargo doc --no-deps
 cargo check --target wasm32-unknown-unknown
 cargo check --target thumbv7em-none-eabi
 cargo +nightly miri test --locked --lib --tests
-python3 scripts/check-package.py
+python3 scripts/check_package.py
 ```
 
 The independent `comparison/` workspace pins Kanidm protocol and BER releases.

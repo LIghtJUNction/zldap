@@ -1,0 +1,50 @@
+{
+  "utc": "2026-11-10T03:58:03.495349+00:00",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "git_head": "18be2b742177ca8357fb25d4e0d86b73d87696d1",
+  "source_sha256": {
+    "comparison/Cargo.lock": "d71a72b92763acdf6de2f71ff243b19cad72547b412599956c10bf05bdeea28d",
+    "comparison/Cargo.toml": "3cb5c9b2b48ca421160a9b48fedebc804a9bb95a6679a45163e1e8960807ba76",
+    "comparison/src/allocations.rs": "ea9d0133ced0d7ac32123f23dec65f014bde8ead5341d0635d6f9205c04a5023",
+    "comparison/src/corpus.rs": "19992b525e14f95bc5c157efad124ef9706fa8b9ce93986dd1fa5a991a8c63bd",
+    "comparison/src/encoding.rs": "adb56866a1b08b87a6f1a3e5e989d5b0ffe83ed7a862b6c0eccd14a561065b0a",
+    "comparison/src/lib.rs": "0344677d82bab2e62d6bbb4b747768b92b00bb11c351987464edbb2d8f0fcc77",
+    "comparison/src/main.rs": "a4d051a961d2e7cdd48075f38eea454b958f4806cbe2fe08b7999861509f7302",
+    "comparison/src/oracle.rs": "9ea74587652dfdef270e083ea05944e11e60f651b7fa5ee05b119433a2aed06d",
+    "comparison/src/semantics.rs": "22bbc7a6c1f83b38882925866c38c317d0f6f5aacbe9c1a17c8e78686b08b10b",
+    "src/ber.rs": "a331a226c85e310e83cb28a7885e154eaf545b7b06ac29719d68cb1c4b8451c9",
+    "src/encode.rs": "def77e25a60fe40044dc0dab17ddeb5046da2028ed5cde0266c2b77bd8d64e45",
+    "src/filter.rs": "7ad4935e685bbfd72dae2b30d77ddc7f50e02b2c1a8ddc2f87e850add417fd48",
+    "src/ldap.rs": "ed761997e5db881b0efd9acf583c16eafa48c2bba7c3c76901637f5d4e70ab5b",
+    "src/lib.rs": "989d15c7612a5618fa5eb84944906936dad977efa6667ef2d65eed369b1f0fb1"
+  },
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "pinned_cpu": 0,
+  "iterations": 30000,
+  "samples": 7,
+  "max_input_bytes_per_sample": 67108864,
+  "oracle_crates": {
+    "ldap3_proto": "0.9.0",
+    "ldap3_lber": "0.9.0"
+  },
+  "oracle_source_commit": "f1ec51111756a6ea941a0685827283bb55bb94ac",
+  "instrumentation": "timing=system allocator; memory=separate count-allocations feature build",
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "load_average_start": [
+    1.6630859375,
+    1.82470703125,
+    1.279296875
+  ]
+}

@@ -54,7 +54,9 @@ pub enum OperationInput<'a> {
     UnbindRequest,
 }
 
-/// Borrowed input for constructing a canonical LDAP message.
+/// Borrowed input for constructing a definite-length LDAP message.
+/// Newly emitted headers use minimal lengths; validated filter contents retain
+/// their original BER representation.
 #[derive(Clone, Copy)]
 pub struct MessageInput<'a> {
     pub id: u32,
@@ -286,6 +288,9 @@ fn emit(message: &MessageInput<'_>, sink: &mut impl Sink) -> Result<()> {
 }
 
 fn emit_result(result: ResultInput<'_>, sink: &mut impl Sink) -> Result<()> {
+    if (result.code == 10) == result.referrals.is_empty() {
+        return Err(Error::new(ErrorKind::InvalidValue, 0));
+    }
     if !result.referrals.is_empty() {
         let referrals = sink.len();
         for referral in result.referrals.iter().rev() {

@@ -171,7 +171,10 @@ impl<'a> Filter<'a> {
                         || !(1..=4).contains(&field.tag.number)
                     {
                         // Implied extensibility permits trailing unknown fields.
-                        if value.is_none() {
+                        if value.is_none()
+                            || (field.tag.class == Class::Context
+                                && (1..=4).contains(&field.tag.number))
+                        {
                             return Err(Error::new(ErrorKind::InvalidFilter, field.offset));
                         }
                         extensions(
@@ -199,7 +202,12 @@ impl<'a> Filter<'a> {
                         }
                         2 => name = Some(attribute(field)?),
                         3 => value = Some(field.value),
-                        4 => dn_attributes = ldap_boolean(field)?,
+                        4 => {
+                            dn_attributes = ldap_boolean(field)?;
+                            if !dn_attributes {
+                                return Err(Error::new(ErrorKind::InvalidValue, field.offset));
+                            }
+                        }
                         _ => (),
                     }
                 }
