@@ -1,0 +1,27 @@
+[package]
+name = "zldap"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Zero-dependency, no_std LDAP/BER codec with bounded, allocation-free parsing"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/LIghtJUNction/zldap"
+readme = "README.md"
+keywords = ["ldap", "ber", "no-std", "zero-copy", "protocol"]
+categories = ["encoding", "network-programming", "no-std", "embedded"]
+include = ["src/**", "tests/**", "examples/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE*", "CHANGELOG.md", "SECURITY.md"]
+
+[workspace]
+members = ["."]
+exclude = ["comparison"]
+
+[features]
+default = []
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+lto = "thin"
+codegen-units = 1
