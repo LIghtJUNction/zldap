@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths: [rust-toolchain.toml]
   workflow_dispatch:
     inputs:
       bump:
@@ -51,7 +54,7 @@ jobs:
       - name: Calculate and apply the requested version
         id: version
         env:
-          BUMP: ${{ inputs.bump }}
+          BUMP: ${{ inputs.bump || 'patch' }}
         run: python scripts/release.py bump "$BUMP"
       - name: Commit the release version
         id: commit
@@ -108,7 +111,7 @@ jobs:
       - name: Check version vacancy or verify an explicit recovery
         id: registry
         env:
-          RESUME: ${{ inputs.resume }}
+          RESUME: ${{ inputs.resume || 'false' }}
         run: python scripts/release.py registry --artifact "target/package/zldap-$VERSION.crate" --resume "$RESUME"
       - name: Publish the validated crate
         if: steps.registry.outputs.published != 'true'
