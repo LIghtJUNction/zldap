@@ -111,6 +111,17 @@ It is excluded from the published package and the core dependency graph. Its
 README documents the corpus, semantic checks, timing and allocation accounting.
 Performance conclusions apply only to measured equivalent protocol operations.
 
+The [recorded comparison](https://github.com/LIghtJUNction/zldap/blob/main/comparison/results/20261110-final/REPORT.md)
+against `ldap3_proto 0.9.0` measured full-decode speedups of 2.45×–17.66×
+across eleven accepted workloads on one Xeon Platinum 8573C. Simple Search was
+2.78× and a complex Filter was 2.94×. zldap made no measured heap allocations.
+The 128 KiB value advantage comes from borrowing bytes; decoding and hashing
+every payload byte was effectively tied. The report separates BER, full LDAP,
+byte-reading, native-API encoding, errors and memory, with raw CSV and source hashes.
+
+See the [engineering report](https://github.com/LIghtJUNction/zldap/blob/main/docs/zldap-0.1.0-report.md)
+for supported fields, safety evidence, throughput, memory accounting and release status.
+
 ## Release
 
 The GitHub **Release** workflow accepts `current`, `patch`, `minor` or `major`.

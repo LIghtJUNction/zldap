@@ -1,0 +1,104 @@
+   Compiling zldap v0.1.0 (/workspace/scratch/5a5a70e6156a/zldap)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/zldap/a29cc3247a9f95e1/out/zldap-a29cc3247a9f95e1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ber.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/zldap/867d0cacc2b728fe/out/ber-867d0cacc2b728fe)
+
+running 16 tests
+test boolean_and_octet_string_semantics ... ok
+test cursor_errors_are_transactional_and_offsets_saturate ... ok
+test deeply_nested_input_uses_only_caller_stack ... ok
+test definite_lengths_accept_ber_long_form ... ok
+test deterministic_random_inputs_terminate_without_panicking ... ok
+test every_prefix_of_valid_values_is_truncated ... ok
+test excessive_length_of_length_is_bounded_and_zero_prefixes_work ... ok
+test high_tag_identifiers_round_trip_all_classes ... ok
+test invalid_identifiers_are_bounded ... ok
+test reserved_indefinite_overflow_and_truncated_lengths ... ok
+test reverse_writer_container_checkpoints_preserve_siblings ... ok
+test scalar_vectors_borrow_original_bytes ... ok
+test signed_integer_boundaries_and_minimality ... ok
+test validator_enforces_global_fields_depth_values_and_workspace ... ok
+test validator_rejects_malformed_nested_values_and_trailing_data ... ok
+test writer_capacity_errors_do_not_modify_previous_output ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.01s
+
+     Running tests/encode.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/zldap/5b73ca4a9eb011c4/out/encode-5b73ca4a9eb011c4)
+
+running 15 tests
+test bind_response_preserves_sasl_tokens_and_protocol_result_fields ... ok
+test controls_preserve_order_defaults_and_optional_empty_values ... ok
+test empty_sasl_mechanism_preserves_the_abort_request_as_protocol_data ... ok
+test entries_keep_empty_sets_binary_values_and_attribute_order ... ok
+test every_insufficient_capacity_preserves_the_entire_buffer ... ok
+test every_operation_matches_independent_minimal_wire_vectors ... ok
+test invalid_bind_versions_and_sasl_mechanisms_are_transactional ... ok
+test invalid_controls_attributes_referrals_and_integers_are_transactional ... ok
+test large_attribute_values_round_trip_with_exact_capacity_and_limits ... ok
+test message_id_sign_boundaries_use_minimal_positive_integer_bytes ... ok
+test raw_copy_keeps_extensions_and_is_transactional_at_every_capacity ... ok
+test results_preserve_referrals_for_bind_and_search_done ... ok
+test sasl_credentials_distinguish_absence_empty_and_binary_data ... ok
+test search_round_trips_enums_limits_boolean_attributes_and_filter ... ok
+test validated_filter_extension_and_ber_length_bytes_are_preserved ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.07s
+
+     Running tests/fast_path.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/zldap/d95ace36c66a9aea/out/fast_path-d95ace36c66a9aea)
+
+running 10 tests
+test absent_empty_and_binary_credentials_stay_distinct ... ok
+test empty_sasl_mechanism_matches_general_and_keeps_resource_counts ... ok
+test every_flat_shape_matches_general_across_sign_and_length_boundaries ... ok
+test frame_capacity_uses_each_encodings_actual_size ... ok
+test full_frame_truncations_and_batches_preserve_prefix_boundaries ... ok
+test invalid_utf8_and_sasl_mechanisms_fall_back_with_identical_errors ... ok
+test malformed_flat_candidates_have_identical_general_outcomes ... ok
+test resource_thresholds_match_independently_counted_trees ... ok
+test simultaneous_budget_failures_keep_general_error_precedence ... ok
+test unsigned_integer_gate_matches_signed_general_validation ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 115.23s
+
+     Running tests/ldap_security.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/zldap/f2a94a082d7f3147/out/ldap_security-f2a94a082d7f3147)
+
+running 31 tests
+test attribute_selections_validate_every_name_before_returning ... ok
+test controls_preserve_criticality_and_absent_vs_empty_values ... ok
+test deep_and_wide_filters_fail_with_explicit_resource_errors ... ok
+test default_false_fields_must_be_omitted_from_ldap_encoding ... ok
+test deterministic_random_and_mutated_messages_terminate ... ok
+test duplicate_fields_and_out_of_order_optionals_are_rejected ... ok
+test empty_and_binary_credentials_are_protocol_data ... ok
+test empty_constructed_extensions_still_consume_depth_and_fields ... ok
+test empty_sasl_mechanism_preserves_abort_protocol_data ... ok
+test every_prefix_of_representative_frames_is_truncated ... ok
+test extensible_filter_optional_fields_are_ordered_and_distinct ... ok
+test giant_announced_lengths_are_rejected_before_body_arrives ... ok
+test global_message_budgets_include_all_containers_and_primitive_fields ... ok
+test ids_versions_and_application_tags_are_checked ... ok
+test known_choice_alternatives_are_not_unknown_trailing_extensions ... ok
+test late_result_attributes_and_values_are_eagerly_validated ... ok
+test logical_filters_reject_missing_children_and_validate_all_branches ... ok
+test malformed_late_controls_cannot_hide_behind_unconsumed_iterators ... ok
+test metadata_utf8_and_binary_values_have_distinct_rules ... ok
+test nested_filter_events_have_correct_depth_and_bounded_workspace ... ok
+test prefix_framing_applies_limits_per_message_in_a_batch ... ok
+test referral_presence_is_tied_to_its_result_code ... ok
+test result_referrals_and_sasl_response_bytes_are_eagerly_validated ... ok
+test sasl_distinguishes_absent_empty_and_binary_credentials ... ok
+test search_enumerations_limits_and_boolean_encodings_are_checked ... ok
+test substring_order_cardinality_and_binary_parts_are_checked ... ok
+test trailing_integer_is_unknown_in_result_and_entry_schemas ... ok
+test unbind_is_exactly_primitive_empty_protocol_data ... ok
+test unknown_extension_booleans_obey_the_ldap_true_encoding ... ok
+test unknown_trailing_extensions_are_validated_and_preserved ... ok
+test wrong_constructed_bit_cannot_disguise_duplicate_known_tag ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 31.70s
+

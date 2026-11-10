@@ -1,0 +1,11 @@
+{
+  "method": "wait4 for this benchmark child only",
+  "peak_rss_bytes": 12058624,
+  "raw_maxrss": 11776,
+  "raw_maxrss_unit": "KiB",
+  "user_cpu_seconds": 0.0,
+  "system_cpu_seconds": 0.002732,
+  "wall_seconds": 0.005872375000762986,
+  "exit_code": 0,
+  "scope": "whole benchmark process including both libraries, corpora and caller buffers; excludes compiler processes"
+}

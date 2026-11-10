@@ -179,6 +179,9 @@ fn boolean_and_octet_string_semantics() {
             Tlv::parse(&encoded, limits()).unwrap().0.as_bool(),
             Ok(value != 0)
         );
+        // Generic BER allows every nonzero true representation. The private
+        // LDAP validation profile applies its stricter 0xff requirement.
+        validate(&encoded, limits(), &mut []).unwrap();
     }
     for encoded in [&[1, 0][..], &[1, 2, 0, 0][..]] {
         assert_eq!(

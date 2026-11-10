@@ -126,10 +126,28 @@ these inputs are excluded from equivalent-work timing.
 
 ## Claims supported by these experiments
 
-Use the per-scenario tables and raw files in
-[`results/20261110-baseline`](results/20261110-baseline/REPORT.md) for the initial
-implementation. Later results should be reported separately, retaining the
-baseline. This synthetic corpus on one CPU does not establish performance on all
+The final run is
+[`results/20261110-final`](results/20261110-final/REPORT.md), measured from commit
+`68f0bfeb762e3f6e84bea323771772d6b4808e98` with no uncommitted source patch. All 11
+accepted full-protocol decode scenarios measured **2.45–17.66×** the reference's
+throughput on the recorded Xeon host. Simple Search measured **2.78×**, complex
+Search **2.94×**, and the entry batch **2.45×**. Reading and hashing every payload
+byte after decoding produced ratios of **0.997–4.16×**; the large-value case was
+effectively tied. Those workloads answer different questions and must remain
+separately labelled.
+
+Every measured zldap operation made zero heap allocations. The reference's
+protocol decoder made 2–522 allocation calls per message and reached 193–132,069
+live heap bytes, depending on the fixture. The whole benchmark process reached
+12,058,624 bytes RSS; this includes both libraries and fixtures, and is not
+zldap's standalone memory usage. Its caller-provided workspace occupies 512 bytes
+and `Message` occupies 192 bytes on this 64-bit target.
+
+The initial [`baseline`](results/20261110-baseline/REPORT.md) and the preceding
+[`preflight run`](results/20261110-preflight/REPORT.md) remain available as
+historical measurements. Use the final run for claims about the delivered source.
+
+This synthetic corpus on one CPU does not establish performance on all
 architectures. It does not measure a Kanidm server, networking, TLS, password
 verification, authorization, or database work. The allocator experiment and
 differential tests complement the root crate's adversarial tests and Miri;

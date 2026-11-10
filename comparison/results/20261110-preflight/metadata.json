@@ -1,0 +1,66 @@
+{
+  "utc": "2026-11-10T04:21:50.611839+00:00",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "git_head": "91e146c4cb2ba17afcbf47352533a817c146b3b1",
+  "source_sha256": {
+    "Cargo.lock": "cc6a12b878683d157b451493051f3f8b3eeaf49c03abb0b263b1746680015db6",
+    "Cargo.toml": "4b6471cb86e7cd8cb096fda548f2b043e91e48251ad47e3ea5280367ac5b42e6",
+    "comparison/Cargo.lock": "d71a72b92763acdf6de2f71ff243b19cad72547b412599956c10bf05bdeea28d",
+    "comparison/Cargo.toml": "30bd182b3a660d2c7ce992b70b32fb5017cef035ef094ba71d71787fb36b184f",
+    "comparison/run.py": "2dadbb22870c904229d2264e65be073eb10815124c7dff3ce86febe9cab5e447",
+    "comparison/src/allocations.rs": "e8f792341105abe841eea0d58ca673cf7d098ab8aaf4c522b92b07b2d115048a",
+    "comparison/src/corpus.rs": "19992b525e14f95bc5c157efad124ef9706fa8b9ce93986dd1fa5a991a8c63bd",
+    "comparison/src/encoding.rs": "adb56866a1b08b87a6f1a3e5e989d5b0ffe83ed7a862b6c0eccd14a561065b0a",
+    "comparison/src/lib.rs": "0344677d82bab2e62d6bbb4b747768b92b00bb11c351987464edbb2d8f0fcc77",
+    "comparison/src/main.rs": "b918e4c98a55fdf73de537417b1d1b5d06c87f70530cdc8eb68518503e914c25",
+    "comparison/src/oracle.rs": "9ea74587652dfdef270e083ea05944e11e60f651b7fa5ee05b119433a2aed06d",
+    "comparison/src/semantics.rs": "22bbc7a6c1f83b38882925866c38c317d0f6f5aacbe9c1a17c8e78686b08b10b",
+    "comparison/summarize.py": "fdd5f0a9ee97b71a963cb822356a10903c603026090d85c4b1dd7e1b4a13ac28",
+    "comparison/tests/differential.rs": "110db37ab3999290a32771063d8236b90777f0eae4cde1016f613f30f1ccad0a",
+    "src/ber.rs": "fc75ac7440e2479a09f95f3169e63bb613b71f8c9aa86ee1a911c509285d9978",
+    "src/encode.rs": "6a48bcb4de3792982e8bb047e690ecbf0020026f8d2b8763fbd076e4b0890f62",
+    "src/filter.rs": "a84e64ddb072f35dfa72e229a6bd333cbd7a8b62c36c233b3d45aa8762168623",
+    "src/ldap.rs": "f488c2be926e8d52f064fca3356509a752db9d704f5ebc9915a5d0341eeef94d",
+    "src/lib.rs": "989d15c7612a5618fa5eb84944906936dad977efa6667ef2d65eed369b1f0fb1"
+  },
+  "cpu_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "pinned_cpu": 0,
+  "iterations": 100000,
+  "samples": 9,
+  "phase": "all",
+  "max_input_bytes_per_sample": 67108864,
+  "oracle_crates": {
+    "ldap3_proto": "0.9.0",
+    "ldap3_lber": "0.9.0"
+  },
+  "oracle_source_commit": "f1ec51111756a6ea941a0685827283bb55bb94ac",
+  "instrumentation": "timing=system allocator; memory=separate count-allocations feature build",
+  "rustflags": "",
+  "cargo_encoded_rustflags": "",
+  "process_measurement": "wait4-child-rusage",
+  "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+  "load_average_start": [
+    1.91259765625,
+    1.32763671875,
+    1.75048828125
+  ],
+  "type_sizes": {
+    "message_bytes": 192,
+    "filter_bytes": 56,
+    "cursor_bytes": 32,
+    "frame_bytes": 16,
+    "workspace_bytes": 512
+  }
+}
