@@ -1,6 +1,6 @@
 [package]
 name = "zldap"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.74"
 description = "Zero-dependency, no_std LDAP/BER codec with bounded, allocation-free parsing"
