@@ -40,6 +40,8 @@ ENUMERATED, BOOLEAN, primitive OCTET STRING, SEQUENCE and SET are available in
 `ber`. The LDAP layer supports simple and SASL Bind protocol data, BindResponse,
 SearchRequest, SearchResultEntry, SearchResultDone, UnbindRequest, controls and
 referrals. SASL credentials remain opaque bytes.
+An empty SASL mechanism is preserved as the RFC 4511 negotiation-abort signal;
+the application handles the required response.
 
 Filters cover AND, OR, NOT, equality, substrings, greater-or-equal,
 less-or-equal, present, approximate match and extensible match. `Filter::children`
@@ -79,6 +81,17 @@ true must use `ff`, and default FALSE criticality/dnAttributes fields must be
 absent; generic BER BOOLEAN accepts any nonzero octet. Constructed
 OCTET STRING is outside the LDAP BER profile. Embedded ASN.1 in an OCTET STRING
 is opaque and is not recursively decoded.
+
+DNs and referral URIs are exposed as UTF-8 strings; this crate does not evaluate
+directory schemas or implement full RFC 4514 DN and RFC 3986 URI grammars.
+Use the calling application's directory and URI handling for those semantics.
+
+The runnable Search example builds a BER Filter, encodes a request, then reads
+the borrowed fields:
+
+```sh
+cargo run --example search
+```
 
 ## Build and verification
 

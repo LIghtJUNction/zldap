@@ -10,8 +10,9 @@ All transitive versions and registry checksums are fixed in `Cargo.lock`.
 
 ## Reproduce
 
-Use a current stable Rust toolchain for the comparison workspace; the reference
-crate itself requires Rust 1.85 or newer. The production crate's MSRV is separate.
+Use a current stable Rust toolchain for the comparison workspace. The reference
+crate requires Rust 1.85; its locked `uuid` dependency requires 1.89, which is the
+comparison manifest's minimum. The production crate's MSRV is separate.
 
 ```sh
 cargo test --manifest-path comparison/Cargo.toml --locked
@@ -34,8 +35,11 @@ Each output directory contains:
 - `errors.csv`: exact error categories and accepted inputs for both parsers.
 - `metadata.json`: compiler, CPU, affinity, source hashes, reference versions,
   sample count, and iteration cap.
+- `source_changes.patch`: tracked source changes relative to the recorded Git
+  revision, allowing a run from an uncommitted optimization to be reproduced.
 - `REPORT.md`: tables generated directly from the CSV values.
-- `*-process.txt`: total harness process measurements when GNU `time` exists.
+- `*-process.json`: child-specific RSS and CPU measurements from `wait4` on
+  supported Unix platforms. Compiler runs are excluded. GNU `time` is a fallback.
 
 To inspect rejection classifications without running timing:
 
@@ -51,7 +55,14 @@ message IDs, and consumed frame boundaries. A second comparison checks every BER
 tag, constructed flag, and primitive value. Independent encoding paths must
 produce identical bytes, and generated valid inputs cover 512 deterministic
 combinations. Truncation tests cover all short-frame prefixes and sampled offsets
-through large binary values.
+through large binary values. Separate fixtures exercise opaque controls,
+referrals, nonempty BindResponse SASL credentials, and optional Bind credentials.
+The reference collapses absent and empty SASL request credentials into the same
+empty byte vector; equivalence normalizes only that boundary, while an additional
+assertion checks that zldap preserves the original `None` versus `Some(&[])`.
+The pinned reference also discards referral URLs in result messages; tests record
+that loss explicitly and require zldap to preserve the field. Referral messages
+are excluded from the equivalent timed subset.
 
 The timed protocol path in Kanidm is the BER `Parser` followed by
 `LdapMsg::try_from`, matching the protocol work inside `LdapCodec`. Its pre-buffer
@@ -67,6 +78,7 @@ The phases answer different questions:
 | --- | --- | --- |
 | `decode` | Full protocol validation, typed output construction, and output destruction | Borrowed zldap result versus owned Kanidm result |
 | `decode_and_scan` | Decode, then visit every field and hash every payload byte | Shows how a subsequent byte-reading workload reduces the copy-avoidance advantage |
+| `ber_decode` | Complete bounded BER validation plus borrowed TLV view versus an owned `ldap3_lber` tree | Includes every TLV; does not convert LDAP operation fields |
 | `encode_reuse` | Encode repeatedly from existing structured data into preallocated output | Includes the reference's required input clone because its native API consumes the message |
 | `rejection_policy` | Parse malformed, unsupported, or oversized inputs | Acceptance policies differ; these rows are excluded from speedup claims |
 
@@ -106,6 +118,11 @@ categories can describe the same rejection: truncated input becomes `Truncated`
 or `Incomplete`, while invalid BER can surface at different parser layers.
 `tests/differential.rs` records these differences explicitly rather than assuming
 that every accepted reference input is valid for the shared subset.
+
+There is also a valid-wire capability difference: LDAP assertion values are
+OCTET STRINGs. zldap preserves non-UTF-8 assertion bytes, while the reference's
+String representation rejects them. A dedicated test records this difference;
+these inputs are excluded from equivalent-work timing.
 
 ## Claims supported by these experiments
 

@@ -73,24 +73,57 @@ impl<'a> Tlv<'a> {
     /// Bytes following the first value are permitted. Indefinite lengths,
     /// invalid identifiers, overflows, and frames exceeding the configured
     /// message limit are rejected before attempting to access their contents.
+    #[inline(always)]
     pub fn parse(input: &'a [u8], limits: ParseLimits) -> Result<(Self, usize)> {
         Self::parse_at(input, 0, limits)
     }
 
+    #[inline(always)]
     pub(crate) fn parse_at(
         input: &'a [u8],
         base_offset: usize,
         limits: ParseLimits,
     ) -> Result<(Self, usize)> {
+        // LDAP identifiers and small field lengths occupy one octet each.
+        // Keep that path small so callers can eliminate unused view fields and
+        // repeated slice checks when the cursor and schema are inlined.
+        if let [identifier, length, ..] = input {
+            if identifier & 0x1f != 0x1f && *length < 0x80 {
+                let end = usize::from(*length) + 2;
+                if end > limits.max_message_len {
+                    return Err(Error::new(ErrorKind::MessageTooLong, base_offset));
+                }
+                let encoded = input.get(..end).ok_or_else(|| {
+                    Error::new(ErrorKind::Truncated, base_offset.saturating_add(2))
+                })?;
+                return Ok((
+                    Self {
+                        tag: Tag::new(
+                            decode_class(*identifier),
+                            identifier & 0x20 != 0,
+                            u32::from(identifier & 0x1f),
+                        ),
+                        value: &encoded[2..],
+                        encoded,
+                        offset: base_offset,
+                    },
+                    end,
+                ));
+            }
+        }
+        Self::parse_slow(input, base_offset, limits.max_message_len)
+    }
+
+    #[inline(never)]
+    fn parse_slow(
+        input: &'a [u8],
+        base_offset: usize,
+        max_message_len: usize,
+    ) -> Result<(Self, usize)> {
         let first = *input
             .first()
             .ok_or_else(|| Error::new(ErrorKind::Truncated, base_offset))?;
-        let class = match first >> 6 {
-            0 => Class::Universal,
-            1 => Class::Application,
-            2 => Class::Context,
-            _ => Class::Private,
-        };
+        let class = decode_class(first);
         let mut pos = 1usize;
         let mut number = u32::from(first & 0x1f);
         if number == 0x1f {
@@ -152,7 +185,7 @@ impl<'a> Tlv<'a> {
         let end = pos
             .checked_add(length)
             .ok_or_else(|| Error::new(ErrorKind::LengthOverflow, length_offset))?;
-        if end > limits.max_message_len {
+        if end > max_message_len {
             return Err(Error::new(ErrorKind::MessageTooLong, base_offset));
         }
         let encoded = input
@@ -170,12 +203,14 @@ impl<'a> Tlv<'a> {
     }
 
     /// Decode a minimally encoded signed 64-bit INTEGER.
+    #[inline(always)]
     pub fn as_i64(self) -> Result<i64> {
         self.expect(Tag::INTEGER)?;
         signed(self.value, self.offset)
     }
 
     /// Decode a minimally encoded signed 64-bit ENUMERATED value.
+    #[inline(always)]
     pub fn as_enumerated(self) -> Result<i64> {
         self.expect(Tag::ENUMERATED)?;
         signed(self.value, self.offset)
@@ -185,6 +220,7 @@ impl<'a> Tlv<'a> {
     ///
     /// LDAP's stricter requirement that true is encoded as `0xff` is enforced
     /// by the LDAP schema parser.
+    #[inline(always)]
     pub fn as_bool(self) -> Result<bool> {
         self.expect(Tag::BOOLEAN)?;
         match self.value {
@@ -194,6 +230,7 @@ impl<'a> Tlv<'a> {
     }
 
     /// Borrow a primitive OCTET STRING.
+    #[inline(always)]
     pub fn as_octets(self) -> Result<&'a [u8]> {
         self.expect(Tag::OCTET_STRING)?;
         Ok(self.value)
@@ -203,11 +240,13 @@ impl<'a> Tlv<'a> {
     ///
     /// Parsed views always have a valid header extent. Saturation also keeps
     /// this helper safe for manually constructed public views and offsets.
+    #[inline(always)]
     pub fn value_offset(self) -> usize {
         self.offset
             .saturating_add(self.encoded.len().saturating_sub(self.value.len()))
     }
 
+    #[inline(always)]
     fn expect(self, expected: Tag) -> Result<()> {
         if self.tag == expected {
             Ok(())
@@ -217,7 +256,26 @@ impl<'a> Tlv<'a> {
     }
 }
 
+#[inline(always)]
+fn decode_class(identifier: u8) -> Class {
+    match identifier >> 6 {
+        0 => Class::Universal,
+        1 => Class::Application,
+        2 => Class::Context,
+        _ => Class::Private,
+    }
+}
+
+#[inline(always)]
 fn signed(bytes: &[u8], offset: usize) -> Result<i64> {
+    if let [value] = bytes {
+        return Ok(i64::from(*value as i8));
+    }
+    signed_long(bytes, offset)
+}
+
+#[inline(never)]
+fn signed_long(bytes: &[u8], offset: usize) -> Result<i64> {
     if bytes.is_empty() {
         return Err(Error::new(ErrorKind::InvalidInteger, offset));
     }
@@ -239,39 +297,51 @@ fn signed(bytes: &[u8], offset: usize) -> Result<i64> {
 /// Cursor over sibling values. A failed read leaves the cursor unchanged.
 #[derive(Clone, Copy, Debug)]
 pub struct Cursor<'a> {
-    input: &'a [u8],
-    base_offset: usize,
-    position: usize,
-    limits: ParseLimits,
+    remaining: &'a [u8],
+    offset: usize,
+    max_message_len: usize,
+}
+
+/// Tree and primitive budgets are enforced during eager validation. Borrowed
+/// views subsequently need only the per-frame cap when framing their children.
+pub(crate) const fn framing_limits(max_message_len: usize) -> ParseLimits {
+    ParseLimits {
+        max_message_len,
+        max_depth: usize::MAX,
+        max_fields: usize::MAX,
+        max_string_len: usize::MAX,
+    }
 }
 
 impl<'a> Cursor<'a> {
     /// Read fields within an already bounded container.
     pub const fn new(input: &'a [u8], base_offset: usize, limits: ParseLimits) -> Self {
         Self {
-            input,
-            base_offset,
-            position: 0,
-            limits,
+            remaining: input,
+            offset: base_offset,
+            max_message_len: limits.max_message_len,
         }
     }
 
     /// Read the next complete sibling, or `None` at the end of the container.
     #[allow(clippy::should_implement_trait)]
+    #[inline(always)]
     pub fn next(&mut self) -> Result<Option<Tlv<'a>>> {
-        if self.position == self.input.len() {
+        if self.remaining.is_empty() {
             return Ok(None);
         }
-        let (value, size) = Tlv::parse_at(self.remaining(), self.offset(), self.limits)?;
-        // The parser returned a subslice of remaining(), so this cannot exceed
-        // input.len() or overflow usize.
-        self.position += size;
+        let (value, size) = Tlv::parse_at(self.remaining, self.offset, self.framing_limits())?;
+        // The parser returned a subslice of remaining, so size is within its
+        // bounds. Commit both cursor fields only after a successful read.
+        self.remaining = &self.remaining[size..];
+        self.offset = self.offset.saturating_add(size);
         Ok(Some(value))
     }
 
     /// Require that the enclosing schema consumed every byte.
+    #[inline(always)]
     pub fn finish(self) -> Result<()> {
-        if self.position == self.input.len() {
+        if self.remaining.is_empty() {
             Ok(())
         } else {
             Err(Error::new(ErrorKind::TrailingData, self.offset()))
@@ -279,13 +349,19 @@ impl<'a> Cursor<'a> {
     }
 
     /// Borrow the unconsumed bytes.
+    #[inline(always)]
     pub fn remaining(&self) -> &'a [u8] {
-        &self.input[self.position..]
+        self.remaining
     }
 
     /// Current absolute byte offset, saturated for arbitrary caller offsets.
+    #[inline(always)]
     pub fn offset(&self) -> usize {
-        self.base_offset.saturating_add(self.position)
+        self.offset
+    }
+
+    pub(crate) const fn framing_limits(&self) -> ParseLimits {
+        framing_limits(self.max_message_len)
     }
 }
 
@@ -364,6 +440,7 @@ pub fn validate(input: &[u8], limits: ParseLimits, frames: &mut [Frame]) -> Resu
     }
 }
 
+#[inline(always)]
 fn validate_scalar(node: Tlv<'_>, limits: ParseLimits) -> Result<()> {
     if !node.tag.constructed && node.value.len() > limits.max_string_len {
         return Err(Error::new(ErrorKind::StringTooLong, node.offset));

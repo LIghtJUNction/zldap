@@ -61,7 +61,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock comparison/Cargo.lock
           if ! git diff --cached --quiet; then
             git commit -m "chore: release v$VERSION"
             git push origin "HEAD:refs/heads/$DEFAULT_BRANCH"

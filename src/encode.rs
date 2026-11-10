@@ -1,5 +1,5 @@
 use crate::ber::{Tag, Tlv, Writer};
-use crate::ldap::{application, context, valid_attribute, valid_oid};
+use crate::ldap::{application, context, valid_attribute, valid_mechanism, valid_oid};
 use crate::{
     Authentication, BindRequest, DerefAliases, Error, ErrorKind, Filter, ParseLimits, Result, Scope,
 };
@@ -199,12 +199,7 @@ fn emit(message: &MessageInput<'_>, sink: &mut impl Sink) -> Result<()> {
                     mechanism,
                     credentials,
                 } => {
-                    if mechanism.is_empty()
-                        || mechanism.len() > 20
-                        || !mechanism.bytes().all(|b| {
-                            b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-' || b == b'_'
-                        })
-                    {
+                    if !valid_mechanism(mechanism) {
                         return Err(Error::new(ErrorKind::InvalidValue, 0));
                     }
                     let sasl = sink.len();

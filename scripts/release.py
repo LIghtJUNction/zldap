@@ -62,6 +62,30 @@ def replace_lock_version(text, name, old, new):
     return updated
 
 
+def replace_comparison_lock_version(text, name, old, new):
+    """Update only the local core package; retain every third-party pin byte for byte."""
+    data = tomllib.loads(text)
+    if data.get("version") not in (3, 4):
+        raise ValueError("unsupported comparison lockfile format")
+    packages = data.get("package", [])
+    candidates = [(index, item) for index, item in enumerate(packages) if item.get("name") == name]
+    if len(candidates) != 1:
+        raise ValueError("comparison lockfile must contain exactly one zldap package")
+    index, package = candidates[0]
+    if package.get("version") != old or "source" in package or "checksum" in package:
+        raise ValueError("comparison zldap entry must be the current local path dependency")
+    sections = list(re.finditer(r"(?m)^\[\[package\]\][ \t]*$", text))
+    if len(sections) != len(packages):
+        raise ValueError("cannot locate comparison lockfile package sections")
+    start = sections[index].end()
+    end = sections[index + 1].start() if index + 1 < len(sections) else len(text)
+    pattern = re.compile(r'(?m)^(version[ \t]*=[ \t]*)"' + re.escape(old) + r'"([ \t]*(?:#.*)?)$')
+    updated, count = pattern.subn(lambda match: f'{match[1]}"{new}"{match[2]}', text[start:end])
+    if count != 1:
+        raise ValueError("cannot locate the comparison path dependency version")
+    return text[:start] + updated + text[end:]
+
+
 def output(name, value):
     print(f"{name}={value}")
     if os.environ.get("GITHUB_OUTPUT"):
@@ -80,12 +104,27 @@ def package_info():
 def bump(kind):
     name, old = package_info()
     new = next_version(old, kind)
-    # Validate both changes before writing either file.
-    manifest = replace_manifest_version(Path("Cargo.toml").read_text(), old, new)
-    lockfile = replace_lock_version(Path("Cargo.lock").read_text(), name, old, new)
+    # Validate all three files before changing any of them. The workflow commits
+    # the synchronized set together; third-party comparison pins never resolve anew.
+    original = {
+        Path("Cargo.toml"): Path("Cargo.toml").read_text(),
+        Path("Cargo.lock"): Path("Cargo.lock").read_text(),
+        Path("comparison/Cargo.lock"): Path("comparison/Cargo.lock").read_text(),
+    }
+    updated = {
+        Path("Cargo.toml"): replace_manifest_version(original[Path("Cargo.toml")], old, new),
+        Path("Cargo.lock"): replace_lock_version(original[Path("Cargo.lock")], name, old, new),
+        Path("comparison/Cargo.lock"): replace_comparison_lock_version(original[Path("comparison/Cargo.lock")], name, old, new),
+    }
     if new != old:
-        Path("Cargo.toml").write_text(manifest)
-        Path("Cargo.lock").write_text(lockfile)
+        try:
+            for path, contents in updated.items():
+                path.write_text(contents)
+        except OSError:
+            # A failed write must not leave a partially bumped checkout.
+            for path, contents in original.items():
+                path.write_text(contents)
+            raise
     output("version", new)
     output("tag", f"v{new}")
 

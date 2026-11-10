@@ -14,20 +14,14 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
       - run: rustup toolchain install stable --profile minimal
-      - name: Record host and compiler
-        run: |
-          mkdir -p benchmark-output
-          rustc +stable -Vv > benchmark-output/environment.txt
-          lscpu >> benchmark-output/environment.txt
-          git rev-parse HEAD >> benchmark-output/environment.txt
-      - name: Check semantic equivalence before timing
-        run: cargo +stable test --manifest-path comparison/Cargo.toml --locked
-      - name: Measure the isolated comparison binary
-        run: |
-          set -o pipefail
-          cargo +stable build --release --manifest-path comparison/Cargo.toml --locked
-          /usr/bin/time -v comparison/target/release/zldap-comparison --iterations 20000 --samples 7 2>benchmark-output/process.txt | tee benchmark-output/results.txt
+      - name: Verify and measure protocol throughput and memory
+        env:
+          RUSTUP_TOOLCHAIN: stable
+        run: python3 comparison/run.py --output benchmark-output --iterations 20000 --samples 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-${{ github.sha }}

@@ -132,12 +132,7 @@ fn sasl_distinguishes_absent_empty_and_binary_credentials() {
             }
         );
     }
-    for mechanism in [
-        &[][..],
-        &b"plain"[..],
-        &b"A B"[..],
-        &b"ABCDEFGHIJKLMNOPQRSTU"[..],
-    ] {
+    for mechanism in [&b"plain"[..], &b"A B"[..], &b"ABCDEFGHIJKLMNOPQRSTU"[..]] {
         let encoded = message(1, bind_operation(3, b"", group(0xa3, &[octets(mechanism)])));
         assert_eq!(error(&encoded), ErrorKind::InvalidValue);
     }
@@ -152,6 +147,30 @@ fn sasl_distinguishes_absent_empty_and_binary_credentials() {
         ),
     );
     assert_eq!(error(&duplicate), ErrorKind::UnexpectedTag);
+}
+
+#[test]
+fn empty_sasl_mechanism_preserves_abort_protocol_data() {
+    // RFC 4511 section 4.2.1 uses an empty mechanism to abort a negotiation.
+    // The codec exposes that request; a server decides the response.
+    for credentials in [None, Some(&[][..])] {
+        let mut fields = vec![octets(b"")];
+        if let Some(value) = credentials {
+            fields.push(octets(value));
+        }
+        let encoded = message(1, bind_operation(3, b"", group(0xa3, &fields)));
+        let Operation::BindRequest(request) = parse(&encoded).unwrap().operation else {
+            panic!("wrong operation")
+        };
+        assert_eq!(request.version, 3);
+        assert_eq!(
+            request.authentication,
+            Authentication::Sasl {
+                mechanism: "",
+                credentials,
+            }
+        );
+    }
 }
 
 #[test]

@@ -195,6 +195,44 @@ fn sasl_credentials_distinguish_absence_empty_and_binary_data() {
 }
 
 #[test]
+fn empty_sasl_mechanism_preserves_the_abort_request_as_protocol_data() {
+    // RFC 4511 section 4.2.1 permits an empty mechanism to abort SASL negotiation.
+    // The codec exposes that request; the server owns its authentication result.
+    let cases: &[(Option<&[u8]>, &[u8])] = &[
+        (
+            None,
+            b"\x30\x0e\x02\x01\x01\x60\x09\x02\x01\x03\x04\x00\xa3\x02\x04\x00",
+        ),
+        (
+            Some(b""),
+            b"\x30\x10\x02\x01\x01\x60\x0b\x02\x01\x03\x04\x00\xa3\x04\x04\x00\x04\x00",
+        ),
+        (
+            Some(b"\0\xff"),
+            b"\x30\x12\x02\x01\x01\x60\x0d\x02\x01\x03\x04\x00\xa3\x06\x04\x00\x04\x02\0\xff",
+        ),
+    ];
+    for &(credentials, expected) in cases {
+        let authentication = Authentication::Sasl {
+            mechanism: "",
+            credentials,
+        };
+        let bytes = encode(&input(OperationInput::BindRequest(BindRequest {
+            version: 3,
+            name: "",
+            authentication,
+        })));
+        assert_eq!(bytes, expected);
+        let Operation::BindRequest(request) = parse(&bytes).operation else {
+            panic!("expected the SASL abort BindRequest")
+        };
+        assert_eq!(request.version, 3);
+        assert!(request.name.is_empty());
+        assert_eq!(request.authentication, authentication);
+    }
+}
+
+#[test]
 fn bind_response_preserves_sasl_tokens_and_protocol_result_fields() {
     for credentials in [None, Some(&b""[..]), Some(&b"\xff\0challenge"[..])] {
         let bytes = encode(&input(OperationInput::BindResponse {
@@ -445,7 +483,7 @@ fn invalid_bind_versions_and_sasl_mechanisms_are_transactional() {
             ErrorKind::InvalidVersion,
         );
     }
-    for mechanism in ["", "plain", "PLAIN ", "A!", "AAAAAAAAAAAAAAAAAAAAA"] {
+    for mechanism in ["plain", "PLAIN ", "A!", "AAAAAAAAAAAAAAAAAAAAA"] {
         rejected(
             &input(OperationInput::BindRequest(BindRequest {
                 version: 3,

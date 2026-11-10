@@ -47,6 +47,27 @@ fn decode_oracle(case: &Case, scan: bool) {
     }
 }
 
+fn ber_z(case: &Case, workspace: &mut [Frame]) {
+    let mut input = black_box(case.wire.as_slice());
+    while !input.is_empty() {
+        let (tlv, used) = zldap::ber::Tlv::parse(input, ParseLimits::default()).unwrap();
+        zldap::ber::validate(tlv.encoded, ParseLimits::default(), workspace).unwrap();
+        black_box(tlv);
+        input = &input[used..];
+    }
+}
+
+fn ber_oracle(case: &Case) {
+    let mut input = black_box(case.wire.as_slice());
+    while !input.is_empty() {
+        let (remaining, tlv) = ldap3_lber::parse::Parser::new(DEPTH + 1)
+            .parse(input)
+            .unwrap();
+        black_box(tlv);
+        input = remaining;
+    }
+}
+
 fn paired(
     case: &Case,
     phase: &str,
@@ -55,6 +76,11 @@ fn paired(
     mut z: impl FnMut(),
     mut k: impl FnMut(),
 ) {
+    let reference_name = if phase == "ber_decode" {
+        "ldap3_lber"
+    } else {
+        "ldap3_proto"
+    };
     let per_sample = (iterations / case.messages)
         .max(1)
         .min((64 * 1024 * 1024 / case.wire.len().max(1)).max(1));
@@ -66,7 +92,7 @@ fn paired(
         let (z_calls, z_peak) = allocations::measure(z);
         let (k_calls, k_peak) = allocations::measure(k);
         report(case, phase, "zldap", vec![f64::NAN], z_calls, z_peak);
-        report(case, phase, "ldap3_proto", vec![f64::NAN], k_calls, k_peak);
+        report(case, phase, reference_name, vec![f64::NAN], k_calls, k_peak);
         return;
     }
     let mut z_samples = Vec::with_capacity(sample_count);
@@ -81,7 +107,7 @@ fn paired(
         }
     }
     report(case, phase, "zldap", z_samples, 0, 0);
-    report(case, phase, "ldap3_proto", k_samples, 0, 0);
+    report(case, phase, reference_name, k_samples, 0, 0);
 }
 
 fn stats(mut samples: Vec<f64>) -> (f64, f64, f64) {
@@ -158,6 +184,7 @@ fn errors() {
 fn main() {
     let mut iterations = 50_000usize;
     let mut sample_count = 7usize;
+    let mut only_phase = "all".to_owned();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -179,10 +206,32 @@ fn main() {
                 errors();
                 return;
             }
+            "--sizes" => {
+                println!("{{\"message_bytes\":{},\"filter_bytes\":{},\"cursor_bytes\":{},\"frame_bytes\":{},\"workspace_bytes\":{}}}",
+                    std::mem::size_of::<Message<'static>>(),
+                    std::mem::size_of::<zldap::Filter<'static>>(),
+                    std::mem::size_of::<zldap::ber::Cursor<'static>>(),
+                    std::mem::size_of::<Frame>(),
+                    std::mem::size_of::<[Frame; DEPTH]>());
+                return;
+            }
+            "--only-phase" => only_phase = args.next().expect("phase name"),
             _ => panic!("unknown argument {arg}"),
         }
     }
     assert!(iterations > 0 && sample_count > 0);
+    assert!(
+        [
+            "all",
+            "decode",
+            "decode_and_scan",
+            "ber_decode",
+            "encode_reuse",
+            "rejection_policy"
+        ]
+        .contains(&only_phase.as_str()),
+        "unsupported phase"
+    );
     eprintln!("zldap comparison; ldap3_proto=0.9.0; ldap3_lber=0.9.0; strict=true");
     eprintln!(
         "samples={sample_count}; target_messages_per_sample={iterations}; limits={:?}",
@@ -194,17 +243,31 @@ fn main() {
     println!("case,phase,implementation,bytes,messages,median_ns_per_message,min_ns_per_message,max_ns_per_message,messages_per_second,ns_per_byte,allocations_per_message,peak_live_heap_bytes");
     for case in corpus::corpus() {
         let mut workspace = [Frame::EMPTY; DEPTH];
-        for scan in [false, true] {
+        if only_phase == "all" || only_phase == "ber_decode" {
             paired(
                 &case,
-                if scan { "decode_and_scan" } else { "decode" },
+                "ber_decode",
+                iterations,
+                sample_count,
+                || ber_z(&case, &mut workspace),
+                || ber_oracle(&case),
+            );
+        }
+        for scan in [false, true] {
+            let phase = if scan { "decode_and_scan" } else { "decode" };
+            if only_phase != "all" && only_phase != phase {
+                continue;
+            }
+            paired(
+                &case,
+                phase,
                 iterations,
                 sample_count,
                 || decode_z(&case, &mut workspace, scan),
                 || decode_oracle(&case, scan),
             );
         }
-        if case.messages == 1 {
+        if case.messages == 1 && (only_phase == "all" || only_phase == "encode_reuse") {
             let message =
                 Message::parse(&case.wire, ParseLimits::default(), &mut workspace).unwrap();
             let reference = oracle::parse_exact(&case.wire, DEPTH + 1).unwrap();
@@ -228,6 +291,9 @@ fn main() {
                 );
             });
         }
+    }
+    if only_phase != "all" && only_phase != "rejection_policy" {
+        return;
     }
     for case in corpus::malformed() {
         let mut workspace = [Frame::EMPTY; DEPTH];

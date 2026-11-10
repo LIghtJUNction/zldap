@@ -9,14 +9,17 @@ pub(crate) const fn application(number: u32, constructed: bool) -> Tag {
     Tag::new(Class::Application, constructed, number)
 }
 
+#[inline(always)]
 pub(crate) fn contents(tlv: Tlv<'_>, limits: ParseLimits) -> Cursor<'_> {
     Cursor::new(tlv.value, value_offset(tlv), limits)
 }
 
+#[inline(always)]
 pub(crate) fn value_offset(tlv: Tlv<'_>) -> usize {
     tlv.offset + tlv.encoded.len() - tlv.value.len()
 }
 
+#[inline(always)]
 pub(crate) fn expect(tlv: Tlv<'_>, tag: Tag) -> Result<Tlv<'_>> {
     if tlv.tag == tag {
         Ok(tlv)
@@ -25,21 +28,25 @@ pub(crate) fn expect(tlv: Tlv<'_>, tag: Tag) -> Result<Tlv<'_>> {
     }
 }
 
+#[inline(always)]
 pub(crate) fn required<'a>(cursor: &mut Cursor<'a>) -> Result<Tlv<'a>> {
     cursor
         .next()?
         .ok_or_else(|| Error::new(ErrorKind::MissingField, cursor.offset()))
 }
 
+#[inline(always)]
 pub(crate) fn text(tlv: Tlv<'_>) -> Result<&str> {
     core::str::from_utf8(tlv.value)
         .map_err(|e| Error::new(ErrorKind::InvalidUtf8, value_offset(tlv) + e.valid_up_to()))
 }
 
+#[inline(always)]
 pub(crate) fn string<'a>(cursor: &mut Cursor<'a>) -> Result<&'a str> {
     text(expect(required(cursor)?, Tag::OCTET_STRING)?)
 }
 
+#[inline(always)]
 pub(crate) fn positive(tlv: Tlv<'_>, enumeration: bool) -> Result<u32> {
     let value = if enumeration {
         tlv.as_enumerated()?
@@ -52,6 +59,7 @@ pub(crate) fn positive(tlv: Tlv<'_>, enumeration: bool) -> Result<u32> {
     Ok(value as u32)
 }
 
+#[inline(always)]
 pub(crate) fn ldap_boolean(tlv: Tlv<'_>) -> Result<bool> {
     match tlv.value {
         [0] => Ok(false),
@@ -91,6 +99,7 @@ pub(crate) fn valid_attribute(value: &str) -> bool {
             .all(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
 }
 
+#[inline(always)]
 pub(crate) fn attribute(tlv: Tlv<'_>) -> Result<&str> {
     let value = text(tlv)?;
     if valid_attribute(value) {
@@ -101,6 +110,7 @@ pub(crate) fn attribute(tlv: Tlv<'_>) -> Result<&str> {
 }
 
 /// Check unknown trailing SEQUENCE extensions while rejecting duplicate known fields.
+#[inline(always)]
 pub(crate) fn extensions<'a>(cursor: &mut Cursor<'a>, known: &[Tag]) -> Result<&'a [u8]> {
     let bytes = cursor.remaining();
     while let Some(tlv) = cursor.next()? {
@@ -119,6 +129,8 @@ pub(crate) fn extensions<'a>(cursor: &mut Cursor<'a>, known: &[Tag]) -> Result<&
 pub enum Authentication<'a> {
     Simple(&'a [u8]),
     Sasl {
+        /// Empty requests aborting an in-progress SASL negotiation (RFC 4511).
+        /// The application decides and sends the response.
         mechanism: &'a str,
         credentials: Option<&'a [u8]>,
     },
@@ -258,6 +270,19 @@ impl<'a> Message<'a> {
     ) -> Result<(Self, usize)> {
         let (outer, used) = Tlv::parse(input, limits)?;
         expect(outer, Tag::SEQUENCE)?;
+        if let Some(&id_len) = outer.value.get(1) {
+            if outer.value.first() == Some(&0x02)
+                && (1..=4).contains(&id_len)
+                && matches!(
+                    outer.value.get(2 + usize::from(id_len)),
+                    Some(0x42 | 0x60 | 0x61 | 0x65)
+                )
+            {
+                if let Some(message) = small_message(outer, limits, workspace.len()) {
+                    return Ok((message, used));
+                }
+            }
+        }
         ber::validate(outer.encoded, limits, workspace)?;
         let mut cursor = contents(outer, limits);
         let id_tlv = required(&mut cursor)?;
@@ -279,7 +304,6 @@ impl<'a> Message<'a> {
                 }
                 controls = Controls {
                     cursor: contents(field, limits),
-                    limits,
                 };
                 for item in controls {
                     item?;
@@ -323,6 +347,181 @@ impl<'a> Message<'a> {
     }
 }
 
+/// Decode common flat messages in one pass. A candidate is accepted only after
+/// all its fields, exact container boundaries and the complete resource census
+/// have been checked. Other encodings use the general BER/schema path, including
+/// malformed candidates so error categories and offsets remain consistent.
+#[inline(always)]
+fn small_message<'a>(
+    outer: Tlv<'a>,
+    limits: ParseLimits,
+    workspace_len: usize,
+) -> Option<Message<'a>> {
+    let mut fields = outer.value;
+    let id_bytes = short_value(&mut fields, 0x02)?;
+    let id = unsigned(id_bytes)?;
+    if id == 0 {
+        return None;
+    }
+    let op_tag = *fields.first()?;
+    let mut data = short_value(&mut fields, op_tag)?;
+    if !fields.is_empty() {
+        return None;
+    }
+    let mut max_value = id_bytes.len();
+    let (operation, count, depth) = match op_tag {
+        0x42 if data.is_empty() => (Operation::UnbindRequest, 3, 2),
+        0x60 => {
+            let version_bytes = short_value(&mut data, 0x02)?;
+            if version_bytes.len() != 1 || !(1..=127).contains(&version_bytes[0]) {
+                return None;
+            }
+            let name_bytes = short_value(&mut data, 0x04)?;
+            let name = core::str::from_utf8(name_bytes).ok()?;
+            let auth_tag = *data.first()?;
+            let auth = short_value(&mut data, auth_tag)?;
+            if !data.is_empty() {
+                return None;
+            }
+            max_value = max_value.max(1).max(name_bytes.len());
+            let (authentication, count, depth) = match auth_tag {
+                0x80 => {
+                    max_value = max_value.max(auth.len());
+                    (Authentication::Simple(auth), 6, 3)
+                }
+                0xa3 => {
+                    let mut sasl = auth;
+                    let mechanism_bytes = short_value(&mut sasl, 0x04)?;
+                    let mechanism = core::str::from_utf8(mechanism_bytes).ok()?;
+                    if !valid_mechanism(mechanism) {
+                        return None;
+                    }
+                    max_value = max_value.max(mechanism_bytes.len());
+                    let credentials = if sasl.is_empty() {
+                        None
+                    } else {
+                        let value = short_value(&mut sasl, 0x04)?;
+                        max_value = max_value.max(value.len());
+                        Some(value)
+                    };
+                    if !sasl.is_empty() {
+                        return None;
+                    }
+                    (
+                        Authentication::Sasl {
+                            mechanism,
+                            credentials,
+                        },
+                        7 + usize::from(credentials.is_some()),
+                        4,
+                    )
+                }
+                _ => return None,
+            };
+            (
+                Operation::BindRequest(BindRequest {
+                    version: version_bytes[0],
+                    name,
+                    authentication,
+                }),
+                count,
+                depth,
+            )
+        }
+        0x61 | 0x65 => {
+            let code_bytes = short_value(&mut data, 0x0a)?;
+            let code = unsigned(code_bytes)?;
+            if code == 10 {
+                return None;
+            } // Referral is a nested general-path value.
+            let matched = short_value(&mut data, 0x04)?;
+            let diagnostic = short_value(&mut data, 0x04)?;
+            max_value = max_value
+                .max(code_bytes.len())
+                .max(matched.len())
+                .max(diagnostic.len());
+            let result = LdapResult {
+                code,
+                matched_dn: core::str::from_utf8(matched).ok()?,
+                diagnostic_message: core::str::from_utf8(diagnostic).ok()?,
+                referrals: Strings::empty(limits),
+            };
+            let mut count = 6;
+            let operation = if op_tag == 0x61 {
+                let server_sasl_credentials = if data.is_empty() {
+                    None
+                } else {
+                    let bytes = short_value(&mut data, 0x87)?;
+                    max_value = max_value.max(bytes.len());
+                    count += 1;
+                    Some(bytes)
+                };
+                Operation::BindResponse(BindResponse {
+                    result,
+                    server_sasl_credentials,
+                })
+            } else {
+                Operation::SearchResultDone(result)
+            };
+            if !data.is_empty() {
+                return None;
+            }
+            (operation, count, 3)
+        }
+        _ => return None,
+    };
+    if limits.max_fields < count
+        || limits.max_depth < depth
+        || limits.max_string_len < max_value
+        || workspace_len < depth - 1
+    {
+        return None;
+    }
+    Some(Message {
+        id,
+        operation,
+        controls: Controls::empty(limits),
+        extensions: &[],
+        encoded: outer.encoded,
+    })
+}
+
+#[inline(always)]
+fn short_value<'a>(input: &mut &'a [u8], tag: u8) -> Option<&'a [u8]> {
+    let head = input.get(..2)?;
+    if head[0] != tag || head[1] >= 128 {
+        return None;
+    }
+    let end = 2 + usize::from(head[1]);
+    let value = input.get(2..end)?;
+    *input = input.get(end..)?;
+    Some(value)
+}
+
+#[inline(always)]
+fn unsigned(bytes: &[u8]) -> Option<u32> {
+    if bytes.is_empty()
+        || bytes.len() > 4
+        || bytes[0] >= 128
+        || (bytes.len() > 1 && bytes[0] == 0 && bytes[1] < 128)
+    {
+        return None;
+    }
+    let mut value = 0;
+    for &byte in bytes {
+        value = (value << 8) | u32::from(byte);
+    }
+    Some(value)
+}
+
+#[inline(always)]
+pub(crate) fn valid_mechanism(mechanism: &str) -> bool {
+    mechanism.len() <= 20
+        && mechanism
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
 fn peek(mut cursor: Cursor<'_>) -> Result<Option<Tlv<'_>>> {
     cursor.next()
 }
@@ -347,12 +546,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
                 t if t == context(3, true) => {
                     let mut fields = contents(auth, limits);
                     let mechanism = string(&mut fields)?;
-                    if mechanism.is_empty()
-                        || mechanism.len() > 20
-                        || !mechanism.bytes().all(|b| {
-                            b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-' || b == b'_'
-                        })
-                    {
+                    if !valid_mechanism(mechanism) {
                         return Err(Error::new(ErrorKind::InvalidValue, value_offset(auth)));
                     }
                     let credentials = match peek(fields)? {
@@ -474,7 +668,6 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             let attrs = expect(required(&mut cursor)?, Tag::SEQUENCE)?;
             let attributes = Attributes {
                 cursor: contents(attrs, limits),
-                limits,
             };
             for item in attributes {
                 for value in item?.values {
@@ -553,6 +746,7 @@ impl<'a> Strings<'a> {
 
 impl<'a> Iterator for Strings<'a> {
     type Item = Result<&'a str>;
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match self.cursor.next() {
             Ok(Some(t)) => Some(expect(t, Tag::OCTET_STRING).and_then(text)),
@@ -571,11 +765,11 @@ pub struct PartialAttribute<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct Attributes<'a> {
     cursor: Cursor<'a>,
-    limits: ParseLimits,
 }
 
 impl<'a> Iterator for Attributes<'a> {
     type Item = Result<PartialAttribute<'a>>;
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let tlv = match self.cursor.next() {
             Ok(Some(t)) => t,
@@ -583,11 +777,11 @@ impl<'a> Iterator for Attributes<'a> {
             Err(e) => return Some(Err(e)),
         };
         Some((|| {
-            let mut fields = contents(expect(tlv, Tag::SEQUENCE)?, self.limits);
+            let mut fields = contents(expect(tlv, Tag::SEQUENCE)?, self.cursor.framing_limits());
             let description = attribute(expect(required(&mut fields)?, Tag::OCTET_STRING)?)?;
             let set = expect(required(&mut fields)?, Tag::SET)?;
             let values = AttributeValues {
-                cursor: contents(set, self.limits),
+                cursor: contents(set, self.cursor.framing_limits()),
             };
             extensions(&mut fields, &[Tag::OCTET_STRING, Tag::SET])?;
             Ok(PartialAttribute {
@@ -605,6 +799,7 @@ pub struct AttributeValues<'a> {
 
 impl<'a> Iterator for AttributeValues<'a> {
     type Item = Result<&'a [u8]>;
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match self.cursor.next() {
             Ok(Some(t)) => Some(expect(t, Tag::OCTET_STRING).map(|t| t.value)),
@@ -626,20 +821,19 @@ pub struct Control<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct Controls<'a> {
     cursor: Cursor<'a>,
-    limits: ParseLimits,
 }
 
 impl Controls<'_> {
     fn empty(limits: ParseLimits) -> Self {
         Self {
             cursor: Cursor::new(&[], 0, limits),
-            limits,
         }
     }
 }
 
 impl<'a> Iterator for Controls<'a> {
     type Item = Result<Control<'a>>;
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let tlv = match self.cursor.next() {
             Ok(Some(t)) => t,
@@ -647,7 +841,7 @@ impl<'a> Iterator for Controls<'a> {
             Err(e) => return Some(Err(e)),
         };
         Some((|| {
-            let mut fields = contents(expect(tlv, Tag::SEQUENCE)?, self.limits);
+            let mut fields = contents(expect(tlv, Tag::SEQUENCE)?, self.cursor.framing_limits());
             let oid = string(&mut fields)?;
             if !valid_oid(oid) {
                 return Err(Error::new(ErrorKind::InvalidOid, value_offset(tlv)));

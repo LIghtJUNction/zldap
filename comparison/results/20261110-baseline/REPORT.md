@@ -4,6 +4,8 @@ Run: 2026-11-10T03:58:03.495349+00:00. CPU: INTEL(R) XEON(R) PLATINUM 8573C. Pin
 
 Both parsers receive the same bytes and decode the supported LDAP operation completely. Differential tests compare every typed field and consumed frame length before measurement. The zldap output borrows input; ldap3_proto returns owned allocations. The timing binary uses the normal system allocator; allocation counters run in a separate build.
 
+The production source for this baseline is preserved at commit `866d947de6f31cb69d5c02513fe3f4b38c9086e8`; its five `src/*.rs` hashes match `metadata.json`.
+
 ## Full protocol decode
 
 Median latency is per message; peak heap is maximum live parser/encoder heap during one operation, excluding caller input, output, and workspace.

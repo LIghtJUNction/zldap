@@ -9,7 +9,7 @@ use crate::{Error, ErrorKind, ParseLimits, Result};
 #[derive(Clone, Copy, Debug)]
 pub struct Filter<'a> {
     tlv: Tlv<'a>,
-    limits: ParseLimits,
+    max_message_len: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -57,14 +57,20 @@ impl<'a> Filter<'a> {
     }
 
     pub(crate) fn from_tlv(tlv: Tlv<'a>, limits: ParseLimits) -> Result<Self> {
-        let filter = Self { tlv, limits };
+        let filter = Self {
+            tlv,
+            max_message_len: limits.max_message_len,
+        };
         // Walk the preorder wire layout. Descend only into logical filter
         // containers; assertion fields remain part of their owning leaf.
         // BER validation has already established every enclosing boundary.
         let mut offset = 0;
         while offset < tlv.encoded.len() {
             let (node, used) = Tlv::parse_at(&tlv.encoded[offset..], tlv.offset + offset, limits)?;
-            let view = Self { tlv: node, limits };
+            let view = Self {
+                tlv: node,
+                max_message_len: limits.max_message_len,
+            };
             let kind = view.kind()?;
             offset += if matches!(kind, FilterKind::And | FilterKind::Or | FilterKind::Not) {
                 used - node.value.len()
@@ -87,7 +93,7 @@ impl<'a> Filter<'a> {
         if t.tag.class != Class::Context || t.tag.constructed != (t.tag.number != 7) {
             return Err(Error::new(ErrorKind::InvalidFilter, t.offset));
         }
-        let mut fields = contents(t, self.limits);
+        let mut fields = contents(t, ber::framing_limits(self.max_message_len));
         match t.tag.number {
             0 | 1 => {
                 if t.value.is_empty() {
@@ -134,7 +140,7 @@ impl<'a> Filter<'a> {
                     return Err(Error::new(ErrorKind::InvalidFilter, value_offset(sequence)));
                 }
                 let components = Substrings {
-                    cursor: contents(sequence, self.limits),
+                    cursor: contents(sequence, ber::framing_limits(self.max_message_len)),
                 };
                 let mut finished = false;
                 for (count, component) in components.enumerate() {
@@ -236,8 +242,12 @@ impl<'a> Filter<'a> {
             &[]
         };
         Ok(Filters {
-            cursor: Cursor::new(bytes, value_offset(self.tlv), self.limits),
-            limits: self.limits,
+            cursor: Cursor::new(
+                bytes,
+                value_offset(self.tlv),
+                ber::framing_limits(self.max_message_len),
+            ),
+            max_message_len: self.max_message_len,
         })
     }
 
@@ -247,7 +257,7 @@ impl<'a> Filter<'a> {
         FilterEvents {
             input: self.tlv.encoded,
             base: self.tlv.offset,
-            limits: self.limits,
+            max_message_len: self.max_message_len,
             workspace,
             offset: 0,
             depth: 0,
@@ -259,7 +269,7 @@ impl<'a> Filter<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct Filters<'a> {
     cursor: Cursor<'a>,
-    limits: ParseLimits,
+    max_message_len: usize,
 }
 
 impl<'a> Iterator for Filters<'a> {
@@ -268,7 +278,7 @@ impl<'a> Iterator for Filters<'a> {
         match self.cursor.next() {
             Ok(Some(tlv)) => Some(Ok(Filter {
                 tlv,
-                limits: self.limits,
+                max_message_len: self.max_message_len,
             })),
             Ok(None) => None,
             Err(e) => Some(Err(e)),
@@ -313,7 +323,7 @@ pub struct FilterEvent<'a> {
 pub struct FilterEvents<'a, 'w> {
     input: &'a [u8],
     base: usize,
-    limits: ParseLimits,
+    max_message_len: usize,
     workspace: &'w mut [usize],
     offset: usize,
     depth: usize,
@@ -333,11 +343,11 @@ impl<'a> Iterator for FilterEvents<'a, '_> {
             let (tlv, used) = Tlv::parse_at(
                 &self.input[self.offset..],
                 self.base + self.offset,
-                self.limits,
+                ber::framing_limits(self.max_message_len),
             )?;
             let filter = Filter {
                 tlv,
-                limits: self.limits,
+                max_message_len: self.max_message_len,
             };
             let depth = self.depth;
             if matches!(
