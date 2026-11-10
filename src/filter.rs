@@ -48,7 +48,7 @@ pub enum FilterKind<'a> {
 
 impl<'a> Filter<'a> {
     pub fn parse(input: &'a [u8], limits: ParseLimits, workspace: &mut [Frame]) -> Result<Self> {
-        ber::validate(input, limits, workspace)?;
+        ber::validate_ldap(input, limits, workspace)?;
         let (tlv, used) = Tlv::parse(input, limits)?;
         if used != input.len() {
             return Err(Error::new(ErrorKind::TrailingData, used));

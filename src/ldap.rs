@@ -283,7 +283,7 @@ impl<'a> Message<'a> {
                 }
             }
         }
-        ber::validate(outer.encoded, limits, workspace)?;
+        ber::validate_ldap(outer.encoded, limits, workspace)?;
         let mut cursor = contents(outer, limits);
         let id_tlv = required(&mut cursor)?;
         let id = positive(id_tlv, false)?;

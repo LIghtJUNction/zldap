@@ -1,7 +1,7 @@
 //! Borrowed definite-length BER views and a bounded reverse writer.
 //!
 //! [`Tlv::parse`] frames one value. [`validate`] additionally walks every field
-//! with an explicit caller-owned stack and checks the LDAP BER profile. BER
+//! with an explicit caller-owned stack and checks scalar encodings. BER
 //! long-form lengths need not be minimal; integer encodings must be minimal.
 
 use crate::{Error, ErrorKind, ParseLimits, Result};
@@ -380,14 +380,29 @@ impl Frame {
     pub const EMPTY: Self = Self { end: 0, resume: 0 };
 }
 
-/// Validate exactly one complete BER value using the LDAP BER profile.
+/// Validate exactly one complete definite-length BER value.
 ///
 /// Every TLV, including containers, consumes one field from the global budget.
 /// The root has depth one. Every primitive value is subject to the string/value
 /// length limit, including context-specific values. Known scalar types are
 /// validated; unknown tags remain available for application-specific schemas.
 /// The walk has no recursion, allocation, or stack size dependent on input.
+/// Primitive strings are required. BOOLEAN retains generic BER semantics:
+/// every nonzero octet means true; LDAP message and Filter parsing additionally
+/// require true to be encoded as `0xff`, including in unknown extensions.
 pub fn validate(input: &[u8], limits: ParseLimits, frames: &mut [Frame]) -> Result<()> {
+    validate_profile::<false>(input, limits, frames)
+}
+
+pub(crate) fn validate_ldap(input: &[u8], limits: ParseLimits, frames: &mut [Frame]) -> Result<()> {
+    validate_profile::<true>(input, limits, frames)
+}
+
+fn validate_profile<const LDAP: bool>(
+    input: &[u8],
+    limits: ParseLimits,
+    frames: &mut [Frame],
+) -> Result<()> {
     if input.len() > limits.max_message_len {
         return Err(Error::new(ErrorKind::MessageTooLong, 0));
     }
@@ -412,7 +427,7 @@ pub fn validate(input: &[u8], limits: ParseLimits, frames: &mut [Frame]) -> Resu
             Some(root) => root,
             None => Tlv::parse_at(&input[position..end], position, limits)?.0,
         };
-        validate_scalar(node, limits)?;
+        validate_scalar::<LDAP>(node, limits)?;
         let next = position + node.encoded.len();
         if node.tag.constructed && !node.value.is_empty() {
             if stack_len + 1 >= limits.max_depth {
@@ -441,7 +456,7 @@ pub fn validate(input: &[u8], limits: ParseLimits, frames: &mut [Frame]) -> Resu
 }
 
 #[inline(always)]
-fn validate_scalar(node: Tlv<'_>, limits: ParseLimits) -> Result<()> {
+fn validate_scalar<const LDAP: bool>(node: Tlv<'_>, limits: ParseLimits) -> Result<()> {
     if !node.tag.constructed && node.value.len() > limits.max_string_len {
         return Err(Error::new(ErrorKind::StringTooLong, node.offset));
     }
@@ -450,7 +465,14 @@ fn validate_scalar(node: Tlv<'_>, limits: ParseLimits) -> Result<()> {
     }
     match node.tag.number {
         0 => Err(Error::new(ErrorKind::InvalidTag, node.offset)),
-        1 => node.as_bool().map(|_| ()),
+        1 => {
+            let value = node.as_bool()?;
+            if LDAP && value && node.value != [0xff] {
+                Err(Error::new(ErrorKind::InvalidBoolean, node.value_offset()))
+            } else {
+                Ok(())
+            }
+        }
         2 => node.as_i64().map(|_| ()),
         4 => node.as_octets().map(|_| ()),
         10 => node.as_enumerated().map(|_| ()),

@@ -744,6 +744,37 @@ fn unknown_trailing_extensions_are_validated_and_preserved() {
 }
 
 #[test]
+fn unknown_extension_booleans_obey_the_ldap_true_encoding() {
+    // The root fields are ID=1 and an empty simple Bind. The extra universal
+    // BOOLEAN is an unknown trailing field, either direct or nested in [24].
+    for value in [0, 1, 0x7f, 0x80, 0xff] {
+        let direct = [
+            0x30, 0x0f, 2, 1, 1, 0x60, 7, 2, 1, 3, 4, 0, 0x80, 0, 1, 1, value,
+        ];
+        let nested = [
+            0x30, 0x11, 2, 1, 1, 0x60, 7, 2, 1, 3, 4, 0, 0x80, 0, 0xb8, 3, 1, 1, value,
+        ];
+        for encoded in [&direct[..], &nested[..]] {
+            if value == 0 || value == 0xff {
+                parse(encoded).unwrap();
+            } else {
+                assert_eq!(error(encoded), ErrorKind::InvalidBoolean);
+            }
+        }
+        for extension in [tlv(1, &[value]), group(0xb8, &[tlv(1, &[value])])] {
+            let filter = group(0xa3, &[octets(b"cn"), octets(b"x"), extension]);
+            if value == 0 || value == 0xff {
+                Filter::parse(&filter, ParseLimits::default(), &mut [Frame::EMPTY; 8]).unwrap();
+            } else {
+                assert_eq!(filter_error(&filter), ErrorKind::InvalidBoolean);
+            }
+        }
+    }
+    // Encapsulated bytes are opaque; these bytes are not an actual BOOLEAN.
+    parse(&bind(&[1, 1, 1])).unwrap();
+}
+
+#[test]
 fn global_message_budgets_include_all_containers_and_primitive_fields() {
     let encoded = bind(b"abcd");
     let exact = ParseLimits {
