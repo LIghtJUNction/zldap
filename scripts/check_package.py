@@ -24,7 +24,7 @@ def main():
         sys.exit("the core has a normal, dev, build, optional, or target-specific dependency")
     if Path("build.rs").exists() or any("custom-build" in item["kind"] for item in packages[0]["targets"]):
         sys.exit("build scripts are forbidden")
-    if package.get("rust-version") != "1.74":
+    if package.get("rust-version") != "1.99.1":
         sys.exit("update the MSRV matrix and policy together")
     source = Path("src/lib.rs").read_text()
     if not re.search(r"#!\s*\[\s*no_std\s*\]", source):
@@ -32,13 +32,13 @@ def main():
     if not re.search(r"#!\s*\[\s*forbid\s*\(\s*unsafe_code\s*\)\s*\]", source):
         sys.exit("the safe implementation must forbid unsafe_code")
     if tomllib.loads(Path("Cargo.lock").read_text())["version"] != 3:
-        sys.exit("Cargo.lock must remain compatible with Cargo 1.74 (format 3)")
+        sys.exit("Cargo.lock must remain in the pinned format 3")
     # Listing is useful before a commit; the actual packaging/release gates
     # separately require a clean checkout and never pass --allow-dirty.
     contents = run("cargo", "package", "--list", "--locked", "--allow-dirty").splitlines()
     if any(name.startswith(("comparison/", "target/", ".github/")) for name in contents):
         sys.exit("comparison, target, and workflow files must stay out of the published crate")
-    print(f"zldap {package['version']}: zero dependencies, no build script, no_std, no unsafe, MSRV 1.74; {len(contents)} packaged files")
+    print(f"zldap {package['version']}: zero dependencies, no build script, no_std, no unsafe, MSRV 1.99.1; {len(contents)} packaged files")
 
 
 if __name__ == "__main__":
