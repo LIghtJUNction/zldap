@@ -87,29 +87,30 @@ impl<'a> Tlv<'a> {
         // LDAP identifiers and small field lengths occupy one octet each.
         // Keep that path small so callers can eliminate unused view fields and
         // repeated slice checks when the cursor and schema are inlined.
-        if let [identifier, length, ..] = input {
-            if identifier & 0x1f != 0x1f && *length < 0x80 {
-                let end = usize::from(*length) + 2;
-                if end > limits.max_message_len {
-                    return Err(Error::new(ErrorKind::MessageTooLong, base_offset));
-                }
-                let encoded = input.get(..end).ok_or_else(|| {
-                    Error::new(ErrorKind::Truncated, base_offset.saturating_add(2))
-                })?;
-                return Ok((
-                    Self {
-                        tag: Tag::new(
-                            decode_class(*identifier),
-                            identifier & 0x20 != 0,
-                            u32::from(identifier & 0x1f),
-                        ),
-                        value: &encoded[2..],
-                        encoded,
-                        offset: base_offset,
-                    },
-                    end,
-                ));
+        if let [identifier, length, ..] = input
+            && identifier & 0x1f != 0x1f
+            && *length < 0x80
+        {
+            let end = usize::from(*length) + 2;
+            if end > limits.max_message_len {
+                return Err(Error::new(ErrorKind::MessageTooLong, base_offset));
             }
+            let encoded = input
+                .get(..end)
+                .ok_or_else(|| Error::new(ErrorKind::Truncated, base_offset.saturating_add(2)))?;
+            return Ok((
+                Self {
+                    tag: Tag::new(
+                        decode_class(*identifier),
+                        identifier & 0x20 != 0,
+                        u32::from(identifier & 0x1f),
+                    ),
+                    value: &encoded[2..],
+                    encoded,
+                    offset: base_offset,
+                },
+                end,
+            ));
         }
         Self::parse_slow(input, base_offset, limits.max_message_len)
     }

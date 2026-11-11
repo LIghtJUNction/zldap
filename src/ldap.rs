@@ -270,18 +270,16 @@ impl<'a> Message<'a> {
     ) -> Result<(Self, usize)> {
         let (outer, used) = Tlv::parse(input, limits)?;
         expect(outer, Tag::SEQUENCE)?;
-        if let Some(&id_len) = outer.value.get(1) {
-            if outer.value.first() == Some(&0x02)
-                && (1..=4).contains(&id_len)
-                && matches!(
-                    outer.value.get(2 + usize::from(id_len)),
-                    Some(0x42 | 0x60 | 0x61 | 0x65)
-                )
-            {
-                if let Some(message) = small_message(outer, limits, workspace.len()) {
-                    return Ok((message, used));
-                }
-            }
+        if let Some(&id_len) = outer.value.get(1)
+            && outer.value.first() == Some(&0x02)
+            && (1..=4).contains(&id_len)
+            && matches!(
+                outer.value.get(2 + usize::from(id_len)),
+                Some(0x42 | 0x60 | 0x61 | 0x65)
+            )
+            && let Some(message) = small_message(outer, limits, workspace.len())
+        {
+            return Ok((message, used));
         }
         ber::validate_ldap(outer.encoded, limits, workspace)?;
         let mut cursor = contents(outer, limits);
@@ -296,18 +294,18 @@ impl<'a> Message<'a> {
         }
         let operation = parse_operation(op, limits)?;
         let mut controls = Controls::empty(limits);
-        if let Some(next) = peek(cursor)? {
-            if next.tag == context(0, true) {
-                let field = required(&mut cursor)?;
-                if field.value.is_empty() {
-                    return Err(Error::new(ErrorKind::InvalidValue, value_offset(field)));
-                }
-                controls = Controls {
-                    cursor: contents(field, limits),
-                };
-                for item in controls {
-                    item?;
-                }
+        if let Some(next) = peek(cursor)?
+            && next.tag == context(0, true)
+        {
+            let field = required(&mut cursor)?;
+            if field.value.is_empty() {
+                return Err(Error::new(ErrorKind::InvalidValue, value_offset(field)));
+            }
+            controls = Controls {
+                cursor: contents(field, limits),
+            };
+            for item in controls {
+                item?;
             }
         }
         let extension_offset = cursor.offset();
@@ -703,19 +701,19 @@ fn parse_result<'a>(cursor: &mut Cursor<'a>, limits: ParseLimits) -> Result<Ldap
     let matched_dn = string(cursor)?;
     let diagnostic_message = string(cursor)?;
     let mut referrals = Strings::empty(limits);
-    if let Some(t) = peek(*cursor)? {
-        if t.tag == context(3, true) {
-            let field = required(cursor)?;
-            if field.value.is_empty() {
+    if let Some(t) = peek(*cursor)?
+        && t.tag == context(3, true)
+    {
+        let field = required(cursor)?;
+        if field.value.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidValue, value_offset(field)));
+        }
+        referrals = Strings {
+            cursor: contents(field, limits),
+        };
+        for value in referrals {
+            if value?.is_empty() {
                 return Err(Error::new(ErrorKind::InvalidValue, value_offset(field)));
-            }
-            referrals = Strings {
-                cursor: contents(field, limits),
-            };
-            for value in referrals {
-                if value?.is_empty() {
-                    return Err(Error::new(ErrorKind::InvalidValue, value_offset(field)));
-                }
             }
         }
     }
