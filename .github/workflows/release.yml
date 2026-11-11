@@ -54,7 +54,7 @@ jobs:
       - name: Calculate and apply the requested version
         id: version
         env:
-          BUMP: ${{ inputs.bump || 'patch' }}
+          BUMP: ${{ inputs.bump || 'current' }}
         run: python scripts/release.py bump "$BUMP"
       - name: Commit the release version
         id: commit
