@@ -563,7 +563,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
                     return Err(Error::new(
                         ErrorKind::UnsupportedAuthentication(t.number),
                         auth.offset,
-                    ))
+                    ));
                 }
                 _ => return Err(Error::new(ErrorKind::UnexpectedTag, auth.offset)),
             };
@@ -691,7 +691,7 @@ fn parse_operation(tlv: Tlv<'_>, limits: ParseLimits) -> Result<Operation<'_>> {
             return Err(Error::new(
                 ErrorKind::UnsupportedOperation(number),
                 tlv.offset,
-            ))
+            ));
         }
     };
     extensions(&mut cursor, &known[..known_len])?;

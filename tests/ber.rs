@@ -1,4 +1,4 @@
-use zldap::ber::{validate, Class, Cursor, Frame, Tag, Tlv, Writer};
+use zldap::ber::{Class, Cursor, Frame, Tag, Tlv, Writer, validate};
 use zldap::{ErrorKind, ParseLimits};
 
 fn limits() -> ParseLimits {

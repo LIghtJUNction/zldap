@@ -2,7 +2,7 @@ mod allocations;
 
 use std::hint::black_box;
 use std::time::Instant;
-use zldap::{ber::Frame, Message, ParseLimits};
+use zldap::{Message, ParseLimits, ber::Frame};
 use zldap_comparison::{
     corpus::{self, Case},
     encoding, oracle,
@@ -207,12 +207,14 @@ fn main() {
                 return;
             }
             "--sizes" => {
-                println!("{{\"message_bytes\":{},\"filter_bytes\":{},\"cursor_bytes\":{},\"frame_bytes\":{},\"workspace_bytes\":{}}}",
+                println!(
+                    "{{\"message_bytes\":{},\"filter_bytes\":{},\"cursor_bytes\":{},\"frame_bytes\":{},\"workspace_bytes\":{}}}",
                     std::mem::size_of::<Message<'static>>(),
                     std::mem::size_of::<zldap::Filter<'static>>(),
                     std::mem::size_of::<zldap::ber::Cursor<'static>>(),
                     std::mem::size_of::<Frame>(),
-                    std::mem::size_of::<[Frame; DEPTH]>());
+                    std::mem::size_of::<[Frame; DEPTH]>()
+                );
                 return;
             }
             "--only-phase" => only_phase = args.next().expect("phase name"),
@@ -238,9 +240,12 @@ fn main() {
         ParseLimits::default()
     );
     eprintln!(
-        "count-allocations={}; instrumented builds report memory only; peak bytes exclude caller input/workspace", cfg!(feature = "count-allocations")
+        "count-allocations={}; instrumented builds report memory only; peak bytes exclude caller input/workspace",
+        cfg!(feature = "count-allocations")
     );
-    println!("case,phase,implementation,bytes,messages,median_ns_per_message,min_ns_per_message,max_ns_per_message,messages_per_second,ns_per_byte,allocations_per_message,peak_live_heap_bytes");
+    println!(
+        "case,phase,implementation,bytes,messages,median_ns_per_message,min_ns_per_message,max_ns_per_message,messages_per_second,ns_per_byte,allocations_per_message,peak_live_heap_bytes"
+    );
     for case in corpus::corpus() {
         let mut workspace = [Frame::EMPTY; DEPTH];
         if only_phase == "all" || only_phase == "ber_decode" {

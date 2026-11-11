@@ -1,4 +1,4 @@
-use zldap::{ber::Frame, Message, ParseLimits};
+use zldap::{Message, ParseLimits, ber::Frame};
 use zldap_comparison::{
     corpus, encoding, oracle,
     semantics::{self, Fields},
@@ -91,7 +91,7 @@ fn all_truncations_are_rejected_by_both() {
 
 #[test]
 fn ber_tree_fields_and_frame_lengths_match() {
-    use ldap3_lber::structure::{StructureTag, PL};
+    use ldap3_lber::structure::{PL, StructureTag};
     use zldap::ber::{Cursor, Tlv};
     use zldap_comparison::semantics::Sink;
     fn z_fields(tlv: Tlv<'_>, out: &mut Fields) {

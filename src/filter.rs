@@ -152,7 +152,7 @@ impl<'a> Filter<'a> {
                             return Err(Error::new(
                                 ErrorKind::InvalidFilter,
                                 value_offset(sequence),
-                            ))
+                            ));
                         }
                         Substring::Final(_) => finished = true,
                         _ => (),
